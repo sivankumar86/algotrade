@@ -1,0 +1,4 @@
+business_calendar==0.2.1
+pandas==1.1.5
+requests==2.26.0
+boto3==1.18.31
