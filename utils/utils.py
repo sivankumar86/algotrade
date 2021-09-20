@@ -1,7 +1,8 @@
 import pandas as pd
-import datetime
+from datetime import datetime,timedelta
 from dateutil.relativedelta import TH, relativedelta
-
+from dateutil.tz import gettz
+from pandas.tseries.offsets import BDay
 
 
 def converTopandas(tradeDetails):
@@ -20,14 +21,17 @@ def converTopandas(tradeDetails):
     return dfp
 
 def signal(dfp):
-    dfp['long'] = dfp.apply(lambda row: row['roctradel'] or row['hammer'] , axis=1)
-    dfp['short'] = dfp.apply(lambda row: row['roctrades'] or row['shooting'], axis=1)
+    dfp['long'] = dfp.apply(lambda row: row['hammer'] , axis=1)
+    dfp['short'] = dfp.apply(lambda row: row['shooting'], axis=1)
     return dfp
 
 def getMonthExpiryDay():
-    expire_day = datetime.date.today() + relativedelta(day=31, weekday=TH(-1))
+    expire_day = datetime.now() + relativedelta(day=31, weekday=TH(-1))
     expiry=expire_day.strftime('%Y-%m-%d')
     return expiry
+
+def addDays(date=datetime.now(tz=gettz('Asia/Kolkata')),days=0):
+    return date + BDay(days)
 
 
 def get_opSymbol(symbol,  expiry):

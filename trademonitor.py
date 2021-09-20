@@ -1,32 +1,36 @@
 import sys
 
 import pandas as pd
-from business_calendar import Calendar, MO, TU, WE, TH, FR
-from time import time
-from datetime import datetime
+from datetime import datetime,timedelta
 
 from algo.CandleCalculation import roc, hammer, shootingStar
 from broker.samco import login, getindexHistory, getindexIntraDay, getOptionChain
 from utils import email
 from utils.Logger import getLogger
-from utils.utils import converTopandas, signal, getMonthExpiryDay, get_opSymbol
+from utils.utils import converTopandas, signal, getMonthExpiryDay, get_opSymbol, addDays
 
 holidays=['2021-09-10','2021-10-15','2021-11-05','2021-11-19']
-cal = Calendar(holidays=holidays)
-lastBusDay = datetime.today()
+from dateutil.tz import gettz
+lastBusDay = datetime.now(tz=gettz('Asia/Kolkata'))
+#lastBusDay = datetime.today()
 current_date=lastBusDay.strftime('%Y-%m-%d')
 
-date1 = cal.addbusdays(lastBusDay, -1)
-date2 = cal.addbusdays(lastBusDay, -20)
-date3 = cal.addbusdays(lastBusDay, -300)
+table_expire_datetime = lastBusDay + timedelta(days=-1 )
 
+date1 = addDays(days=-1)
+
+date2 = addDays(days=-20)
+#date3 = cal.addbusdays(lastBusDay, -300)
 
 today=date1.strftime("%Y-%m-%d")
+if(today in holidays):
+    date1 = addDays(days=-2)
+    today = date1.strftime("%Y-%m-%d")
+
 intra_today='{} 10:00:00'.format(today)
 
 fromdate=date2.strftime("%Y-%m-%d")
 
-tendaybk=date3.strftime("%Y-%m-%d")
 
 logger=getLogger(__name__)
 
@@ -57,22 +61,23 @@ def optionAnalyze(option_chain):
     return round(pe_oi / ce_oi, 2),pe_oi_m_s,ce_oi_m_s
 
 
-def oisignal(opt_symbol,sessionToken,expiry_day=None):
+def oisignal(opt_symbol,intra_close,sessionToken,expiry_day=None):
     option_chain = getOptionChain(opt_symbol,sessionToken ,expiry_day);
     oi, pe_m, ce_m = optionAnalyze(option_chain)
     ce_mx=ce_m.strikePrice.item()
     pe_max=pe_m.strikePrice.item()
-    status = pd.DataFrame([{"oi": oi, "day": today, "close": intra_close}])
+    status = pd.DataFrame([{"oi": oi, "day": today, "close": intra_close,"cemaxOI":ce_mx,"pemaxOI":pe_max,"expiry_day":expiry_day}])
+    logger.info({"oi": oi, "day": today, "close": intra_close})
     if (oi < 0.8):
         logger.info("Buy CE and sell PE")
         email.send_email(status.to_html(), "Indian Stock Short PE and Long CE - {}".format(today))
     elif (oi > 1.5):
         email.send_email(status.to_html(), "Indian Stock Short CE and Buy PE- {}".format(today))
         logger.info("Buy PE and sell CE")
-    elif (intra_close > (ce_mx-100)):
+    elif (intra_close > ce_mx):
         email.send_email(status.to_html(), "Indian Stock Short CE Weekly- {}".format(today))
         logger.info(f"Indian Stock Short CE Weekly {oi}")
-    elif (intra_close < (pe_max+100)):
+    elif (intra_close < pe_max):
         email.send_email(status.to_html(), "Indian Stock Short PE Weekly - {}".format(today))
         logger.info(f"Indian Stock Short PE Weekly {oi}")
     else:
@@ -81,6 +86,7 @@ def oisignal(opt_symbol,sessionToken,expiry_day=None):
 
 if __name__ =='__main__':
     # config.read('conf/app.conf')
+    credential=login(requestBody=info)
     # TODO move hardcoded config
     logger.info("Analyzer Started")
     if(current_date in holidays):
@@ -98,32 +104,33 @@ if __name__ =='__main__':
         intra_close = int(df2['close'].item())
         if(today_df['long'].bool() or today_df['short'].bool()):
             close=round(today_df['ltp'].item())
+            roc=round(today_df['roc'].item())
             details=[]
             if(today_df['long'].bool()):
-                if(intra_close > close  and intra_close -close <150):
+                if(abs(intra_close - close) <150):
                     logger.info("short PE")
                     logger.info(f'long : {close}')
-                    details.append({"day": today, "close":close})
-                    details.append({"day": df2['dateTime'].item(), "close":intra_close})
+                    details.append({"day": today, "close":close,"roc":roc})
+                    details.append({"day": df2['dateTime'].item(), "close":intra_close,"roc":""})
                     status = pd.DataFrame(details)
                     email.send_email(status.to_html(), "Indian Stock Short PE and Long CE - {}".format(today))
                 else:
-                    details.append({"day": today, "close": close})
-                    details.append({"day": df2['dateTime'].item(), "close": intra_close})
+                    details.append({"day": today, "close": close,"roc":roc})
+                    details.append({"day": df2['dateTime'].item(), "close": intra_close,"roc":"roc"})
                     status = pd.DataFrame(details)
                     email.send_email(status.to_html(), "Indian Stock Short PE - {}".format(today))
                     logger.info("short PE")
             else:
-                if (intra_close < close):
-                    details.append({"day": today, "close": close})
-                    details.append({"day": df2['dateTime'].item(), "close": intra_close})
+                if (abs(intra_close - close) <150):
+                    details.append({"day": today, "close": close,"roc":roc})
+                    details.append({"day": df2['dateTime'].item(), "close": intra_close,"roc":"roc"})
                     status = pd.DataFrame(details)
                     email.send_email(status.to_html(), "Indian Stock Short CE - {}".format(today))
                     logger.info("short CE")
         expiry_day=getMonthExpiryDay()
         opt_symbol=get_opSymbol("BANKNIFTY",expiry_day)
-        oisignal(opt_symbol,credential['sessionToken'],expiry_day)
-        oisignal(opt_symbol,credential['sessionToken'])
+        oisignal(opt_symbol,intra_close,credential['sessionToken'],expiry_day)
+        oisignal(opt_symbol,intra_close,credential['sessionToken'])
 
 
 
