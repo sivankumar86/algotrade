@@ -21,8 +21,8 @@ def converTopandas(tradeDetails):
     return dfp
 
 def signal(dfp):
-    dfp['long'] = dfp.apply(lambda row: row['hammer'] , axis=1)
-    dfp['short'] = dfp.apply(lambda row: row['shooting'], axis=1)
+    dfp['long'] = dfp.apply(lambda row: row['roctradel'] or row['hammer'] , axis=1)
+    dfp['short'] = dfp.apply(lambda row: row['roctrades'] or row['shooting'], axis=1)
     return dfp
 
 def getMonthExpiryDay():

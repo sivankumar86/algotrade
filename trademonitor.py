@@ -65,9 +65,14 @@ def oisignal(opt_symbol,intra_close,sessionToken,expiry_day=None):
     option_chain = getOptionChain(opt_symbol,sessionToken ,expiry_day);
     oi, pe_m, ce_m = optionAnalyze(option_chain)
     ce_mx=ce_m.strikePrice.item()
+    ce_io_count=ce_m.openInterest.item()
+
     pe_max=pe_m.strikePrice.item()
-    status = pd.DataFrame([{"oi": oi, "day": today, "close": intra_close,"cemaxOI":ce_mx,"pemaxOI":pe_max,"expiry_day":expiry_day}])
-    logger.info({"oi": oi, "day": today, "close": intra_close})
+    pe_io_count=pe_m.openInterest.item()
+    metrics={"oi": oi, "day": today, "close": intra_close,"cemaxOI":ce_mx,"pemaxOI":pe_max,
+                            "ceoicount":ce_io_count,"peoicount":pe_io_count,"expiry_day":expiry_day}
+    status = pd.DataFrame([metrics])
+    logger.info(metrics)
     if (oi < 0.8):
         logger.info("Buy CE and sell PE")
         email.send_email(status.to_html(), "Indian Stock Short PE and Long CE - {}".format(today))
